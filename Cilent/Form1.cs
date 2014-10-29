@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -35,32 +36,38 @@ namespace Cilent
         }
         private readonly Screen CurrentScreen = Screen.AllScreens[_currentScreenCount];
         private readonly List<Sub> pool = new List<Sub>();
-        private void timer1_Tick(object sender, EventArgs e)
+        private Thread workingThread;
+        private Queue<String> queue = new Queue<string>();
+        private void Check(object sender)
         {
-            string ret = string.Empty;
-            try
+            while (true)
             {
-                HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(_url);
-                webReq.Method = "GET";
-                HttpWebResponse response = (HttpWebResponse)webReq.GetResponse();
-                StreamReader sr = new StreamReader(response.GetResponseStream(), Encoding.UTF8);
-                ret = sr.ReadToEnd();
-                sr.Close();
-                response.Close();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-            }
-            if (!string.IsNullOrWhiteSpace(ret))
-            {
-                foreach (Sub sub in pool.Where(sub => sub.SubText == ""))
+                string ret = string.Empty;
+                try
                 {
-                    sub.SubText = ret;
-                    sub.X = CurrentScreen.Bounds.Right;
-                    return;
+                    HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(_url);
+                    webReq.Method = "GET";
+                    HttpWebResponse response = (HttpWebResponse)webReq.GetResponse();
+                    StreamReader sr = new StreamReader(response.GetResponseStream(), Encoding.UTF8);
+                    ret = sr.ReadToEnd();
+                    sr.Close();
+                    response.Close();
                 }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                }
+                if (!string.IsNullOrWhiteSpace(ret))
+                {
+                    var retarray = ret.Split(new[] { '\r', '\n' });
+                    foreach (var s in retarray)
+                    {
+                        queue.Enqueue(s.Trim());
+                    }
+                }
+                Thread.Sleep(2000);
             }
+
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -81,10 +88,25 @@ namespace Cilent
                 tmp.Show();
                 pool.Add(tmp);
             }
+            workingThread = new Thread(Check);
+            workingThread.Start();
         }
 
         private void timer2_Tick(object sender, EventArgs e)
         {
+            if (queue.Count != 0)
+            {
+                var ret = queue.Dequeue();
+                var flag = true;
+                foreach (Sub sub in pool.Where(sub => sub.SubText == ""))
+                {
+                    sub.SubText = ret;
+                    sub.X = CurrentScreen.Bounds.Right;
+                    flag = false;
+                    break;
+                }
+                if (flag) queue.Enqueue(ret);
+            }
             foreach (Sub sub in pool.Where(sub => (sub.X + sub.Width > CurrentScreen.Bounds.Left) && sub.SubText != ""))
             {
                 sub.X -= _speed;
