@@ -33,11 +33,13 @@ namespace Cilent
             _windowHeight = Convert.ToInt32(ini.IniReadValue("Window", "Height"));
             _speed = Convert.ToInt32(ini.IniReadValue("Sub", "Speed"));
             _url = ini.IniReadValue("Web", "GetUrl");
+            CurrentScreen = Screen.AllScreens[_currentScreenCount];
         }
-        private readonly Screen CurrentScreen = Screen.AllScreens[_currentScreenCount];
+        private Screen CurrentScreen = Screen.AllScreens[_currentScreenCount];
         private readonly List<Sub> pool = new List<Sub>();
         private Thread workingThread;
         private Queue<String> queue = new Queue<string>();
+        private int _currentid = 0;
         private void Check(object sender)
         {
             while (true)
@@ -45,7 +47,7 @@ namespace Cilent
                 string ret = string.Empty;
                 try
                 {
-                    HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(_url);
+                    HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(_url + "?id=" + _currentid);
                     webReq.Method = "GET";
                     HttpWebResponse response = (HttpWebResponse)webReq.GetResponse();
                     StreamReader sr = new StreamReader(response.GetResponseStream(), Encoding.UTF8);
@@ -59,9 +61,10 @@ namespace Cilent
                 }
                 if (!string.IsNullOrWhiteSpace(ret))
                 {
-                    var retarray = ret.Split(new[] { '\r', '\n' });
-                    foreach (var s in retarray)
+                    var retarray = ret.Split('\r');
+                    foreach (var s in retarray.Where(s => !string.IsNullOrWhiteSpace(s)))
                     {
+                        _currentid++;
                         queue.Enqueue(s.Trim());
                     }
                 }
@@ -72,6 +75,7 @@ namespace Cilent
 
         private void button1_Click(object sender, EventArgs e)
         {
+            workingThread.Abort();
             Application.Restart();
         }
 
@@ -96,24 +100,41 @@ namespace Cilent
         {
             if (queue.Count != 0)
             {
-                var ret = queue.Dequeue();
-                var flag = true;
+                var ret = queue.First();
+                var flag = false;
                 foreach (Sub sub in pool.Where(sub => sub.SubText == ""))
                 {
                     sub.SubText = ret;
                     sub.X = CurrentScreen.Bounds.Right;
-                    flag = false;
+                    flag = true;
                     break;
                 }
-                if (flag) queue.Enqueue(ret);
+                if (flag) queue.Dequeue();
             }
             foreach (Sub sub in pool.Where(sub => (sub.X + sub.Width > CurrentScreen.Bounds.Left) && sub.SubText != ""))
             {
                 sub.X -= _speed;
+                sub.Focus();
                 if (sub.X + sub.Width <= CurrentScreen.Bounds.Left)
                 {
                     sub.SubText = "";
                 }
+            }
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            workingThread.Abort();
+            Application.Exit();
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            queue.Clear();
+            foreach (var sub in pool)
+            {
+                sub.X = CurrentScreen.Bounds.Left - sub.Width;
+                sub.SubText = "";
             }
         }
     }

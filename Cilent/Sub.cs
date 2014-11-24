@@ -17,7 +17,16 @@ namespace Cilent
             label1.Text = text;
             label1.Font = new Font("微软雅黑", size, FontStyle.Regular, GraphicsUnit.Point, 134);
         }
-
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                // turn on WS_EX_TOOLWINDOW style bit
+                cp.ExStyle |= 0x80;
+                return cp;
+            }
+        }
         public String SubText
         {
             get { return label1.Text; }
